@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Twitch Poll Display</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        .poll-container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            min-width: 600px;
+            max-width: 800px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .poll-question {
+            font-size: 2rem;
+            margin-bottom: 30px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .poll-options {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .option {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .option:hover {
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .option-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: relative;
+            z-index: 2;
+        }
+
+        .option-text {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .option-votes {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .vote-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            background: linear-gradient(90deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1));
+            border-radius: 15px;
+            transition: width 0.8s ease;
+            z-index: 1;
+        }
+
+        .total-votes {
+            font-size: 1.1rem;
+            opacity: 0.8;
+            margin-top: 20px;
+        }
+
+        .no-poll {
+            font-size: 1.5rem;
+            opacity: 0.7;
+            font-style: italic;
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+
+        .status-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #4CAF50;
+            animation: pulse 2s infinite;
+        }
+
+        .offline {
+            background: #f44336;
+        }
+    </style>
+</head>
+<body>
+    <div class="poll-container">
+        <div class="status-indicator" id="statusIndicator"></div>
+        
+        <div id="pollContent">
+            <div class="no-poll pulse">
+                🗳️ Waiting for poll...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentPollData = null;
+
+        // Fetch poll data from your Java backend
+        async function fetchPollData() {
+            try {
+                const response = await fetch('/api/poll/status');
+                const data = await response.json();
+                
+                updatePollDisplay(data);
+                updateStatusIndicator(true);
+                
+            } catch (error) {
+                console.error('Error fetching poll data:', error);
+                updateStatusIndicator(false);
+            }
+        }
+
+        function updatePollDisplay(data) {
+            const pollContent = document.getElementById('pollContent');
+            
+            if (!data.active || !data.question) {
+                pollContent.innerHTML = `
+                    <div class="no-poll pulse">
+                        🗳️ Waiting for poll...
+                    </div>
+                `;
+                return;
+            }
+
+            const totalVotes = data.totalVotes || 0;
+            const results = data.results || {};
+            
+            let optionsHtml = '';
+            data.options.forEach(option => {
+                const votes = results[option] || 0;
+                const percentage = totalVotes > 0 ? (votes / totalVotes * 100) : 0;
+                
+                optionsHtml += `
+                    <div class="option">
+                        <div class="vote-bar" style="width: ${percentage}%"></div>
+                        <div class="option-content">
+                            <span class="option-text">${option}</span>
+                            <span class="option-votes">${votes} votes (${percentage.toFixed(1)}%)</span>
+                        </div>
+                    </div>
+                `;
+            });
+
+            pollContent.innerHTML = `
+                <h2 class="poll-question">${data.question}</h2>
+                <div class="poll-options">
+                    ${optionsHtml}
+                </div>
+                <div class="total-votes">
+                    Total Votes: ${totalVotes}
+                </div>
+            `;
+        }
+
+        function updateStatusIndicator(online) {
+            const indicator = document.getElementById('statusIndicator');
+            if (online) {
+                indicator.classList.remove('offline');
+                indicator.title = 'Connected to server';
+            } else {
+                indicator.classList.add('offline');
+                indicator.title = 'Connection lost';
+            }
+        }
+
+        // Update every 2 seconds
+        setInterval(fetchPollData, 2000);
+        
+        // Initial fetch
+        fetchPollData();
+    </script>
+</body>
+</html>
